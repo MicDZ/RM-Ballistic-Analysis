@@ -1,0 +1,8 @@
+*build*
+dist
+.idea
+*cache*
+*.log
+.DS_Store
+*/.DS_Store
+.vscode
