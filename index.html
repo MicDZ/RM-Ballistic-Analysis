@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>弹道计分系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .main-content {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        
+        .canvas-section {
+            flex: 1;
+            min-width: 600px;
+            padding: 30px;
+            border-right: 2px solid #eee;
+        }
+        
+        .control-section {
+            width: 350px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f0f4ff;
+        }
+        
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #e8f0ff;
+        }
+        
+        .upload-area i {
+            font-size: 3em;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .canvas-container {
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            overflow: auto;
+            max-height: 700px;
+            background: #fafafa;
+        }
+        
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .stats {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .stat-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .point-count {
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            text-align: center;
+            margin: 15px 0;
+            font-size: 1.1em;
+        }
+        
+        /* 文本标注控件样式 */
+        .text-controls {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .text-controls h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        .form-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .text-input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .text-select, .text-color {
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #fff;
+        }
+        .hint {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 8px;
+        }
+        .paper-controls {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .paper-controls h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        .segmented {
+            display: inline-flex;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .segmented button {
+            padding: 8px 12px;
+            border: none;
+            background: #fff;
+            cursor: pointer;
+        }
+        .segmented button.active {
+            background: #667eea;
+            color: #fff;
+        }
+
+        @media (max-width: 1024px) {
+            .canvas-section {
+                border-right: none;
+                border-bottom: 2px solid #eee;
+                min-width: 100%;
+            }
+            
+            .control-section {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 弹道计分系统</h1>
+            <p>上传靶纸图片，点击标记弹孔位置，自动计算得分和精度</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="canvas-section">
+                <div class="upload-area" id="uploadArea">
+                    <div style="font-size: 3em; margin-bottom: 15px;">📤</div>
+                    <h3>点击或拖拽上传靶纸图片</h3>
+                    <p style="color: #666; margin-top: 10px;">支持 JPG、PNG 格式</p>
+                    <input type="file" id="fileInput" accept="image/*">
+                </div>
+                
+                <div class="canvas-container" id="canvasContainer" style="display: none;">
+                    <canvas id="canvas"></canvas>
+                </div>
+            </div>
+            
+            <div class="control-section">
+                <div class="point-count" id="pointCount">已标记点数: 0</div>
+                
+                <button class="btn btn-primary" id="analyzeBtn" disabled>📊 分析弹道</button>
+                <button class="btn btn-secondary" id="undoBtn" disabled>↩️ 撤销上一点</button>
+                <button class="btn btn-danger" id="clearBtn" disabled>🗑️ 清除所有点</button>
+                <button class="btn btn-secondary" id="downloadBtn" disabled>💾 下载结果图</button>
+                <button class="btn btn-secondary" id="downloadDataBtn" disabled>🧾 下载数据JSON</button>
+                
+                <div class="paper-controls">
+                    <h3>📄 页面大小与裁剪</h3>
+                    <div class="form-row">
+                        <label for="paperSizeSelect" class="stat-label" style="min-width: 80px;">纸张尺寸</label>
+                        <select id="paperSizeSelect" class="text-select">
+                            <option value="A5">A5 (148×210 mm)</option>
+                            <option value="A4" selected>A4 (210×297 mm)</option>
+                            <option value="A3">A3 (297×420 mm)</option>
+                            <option value="Letter">Letter (216×279 mm)</option>
+                            <option value="Legal">Legal (216×356 mm)</option>
+                        </select>
+                    </div>
+                    <div class="form-row" style="justify-content: space-between;">
+                        <div>
+                            <span class="stat-label" style="margin-right:10px;">方向</span>
+                            <div class="segmented">
+                                <button id="landscapeBtn" class="active" disabled>横向</button>
+                            </div>
+                        </div>
+                        <div>
+                            <button class="btn btn-secondary" id="startCropBtn" disabled>✂️ 开始裁剪</button>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <button class="btn btn-primary" id="confirmCropBtn" disabled>✅ 确认裁剪</button>
+                        <button class="btn btn-danger" id="cancelCropBtn" disabled>❌ 取消裁剪</button>
+                    </div>
+                    <div class="hint" id="cropHint" style="display:none;">裁剪模式：按住并拖拽以框选区域（按所选纸张比例约束）</div>
+                </div>
+
+                <div class="text-controls">
+                    <h3>📝 文本标注</h3>
+                    <div class="form-row">
+                        <input type="text" id="textInput" class="text-input" placeholder="输入要标注的文本...">
+                    </div>
+                    <div class="form-row">
+                        <label for="textSize" class="stat-label" style="min-width: 70px;">字号</label>
+                        <select id="textSize" class="text-select">
+                            <option value="14">14</option>
+                            <option value="16">16</option>
+                            <option value="18" selected>18</option>
+                            <option value="20">20</option>
+                            <option value="24">24</option>
+                            <option value="28">28</option>
+                            <option value="32">32</option>
+                        </select>
+                        <label for="textColor" class="stat-label" style="min-width: 70px;">颜色</label>
+                        <input type="color" id="textColor" class="text-color" value="#ff3b3b">
+                    </div>
+                    <button class="btn btn-primary" id="placeTextBtn" disabled>🖊️ 放置文本</button>
+                    <button class="btn btn-secondary" id="undoTextBtn" disabled>↩️ 撤销文本</button>
+                    <button class="btn btn-danger" id="clearTextBtn" disabled>🗑️ 清除文本</button>
+                    <div class="hint" id="textHint" style="display:none;">已进入文本放置模式：点击画布确定位置</div>
+                </div>
+
+                <div class="stats" id="stats" style="display: none;">
+                    <h3 style="margin-bottom: 15px; color: #667eea;">📈 分析结果</h3>
+                    <div class="stat-item">
+                        <span class="stat-label">平均环数</span>
+                        <span class="stat-value" id="scoreValue">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">平均距离</span>
+                        <span class="stat-value" id="distanceValue">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">小装甲命中率</span>
+                        <span class="stat-value" id="smallHitValue">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">大装甲命中率</span>
+                        <span class="stat-value" id="largeHitValue">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">飞镖命中率</span>
+                        <span class="stat-value" id="dartHitValue">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const undoBtn = document.getElementById('undoBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+    const downloadDataBtn = document.getElementById('downloadDataBtn');
+        const pointCount = document.getElementById('pointCount');
+        const stats = document.getElementById('stats');
+    // 页面大小与裁剪控件
+    const paperSizeSelect = document.getElementById('paperSizeSelect');
+    const landscapeBtn = document.getElementById('landscapeBtn');
+    const startCropBtn = document.getElementById('startCropBtn');
+    const confirmCropBtn = document.getElementById('confirmCropBtn');
+    const cancelCropBtn = document.getElementById('cancelCropBtn');
+    const cropHint = document.getElementById('cropHint');
+    // 文本标注相关控件
+    const textInput = document.getElementById('textInput');
+    const textSize = document.getElementById('textSize');
+    const textColor = document.getElementById('textColor');
+    const placeTextBtn = document.getElementById('placeTextBtn');
+    const undoTextBtn = document.getElementById('undoTextBtn');
+    const clearTextBtn = document.getElementById('clearTextBtn');
+    const textHint = document.getElementById('textHint');
+        
+        let img = new Image();
+        let points = [];
+        let actualImgShape = [1500, 2121]; // 默认图像尺寸
+        // 纸张尺寸（mm）映射，Portrait（竖向）宽×高
+        const paperSizes = {
+            A5: [148, 210],
+            A4: [210, 297],
+            A3: [297, 420],
+            Letter: [216, 279],
+            Legal: [216, 356]
+        };
+        let selectedPaperKey = 'A4';
+        let orientation = 'landscape'; // 'portrait' | 'landscape'
+        function getPageSizeMM() {
+            const [w, h] = paperSizes[selectedPaperKey] || paperSizes.A4;
+            return orientation === 'landscape' ? [h, w] : [w, h];
+        }
+        let pageSizeMM = getPageSizeMM(); // 当前页面物理尺寸（毫米）
+    let hasCropped = false; // 是否进行过裁剪
+    let labels = []; // 文本标注 [{text, x, y, color, size}]
+    let currentMode = 'point'; // 'point' | 'text'
+    let pendingText = null;
+        
+        // 装甲板实际尺寸（毫米）
+        let bigArmorSizeMM = [230, 127];
+        let smallArmorSizeMM = [135, 125];
+        let dartArmorSizeMM = [140, 140];
+        
+        // 装甲板像素尺寸（根据实际图片尺寸动态计算）
+        let bigArmorSize = [0, 0];
+        let smallArmorSize = [0, 0];
+        let dartArmorSize = [0, 0];
+        
+        // 计算装甲板像素尺寸的函数
+        function calculateArmorSizes(imgWidth, imgHeight) {
+            // 根据实际图片尺寸计算比例
+            bigArmorSize = [
+                Math.floor(bigArmorSizeMM[0] / pageSizeMM[0] * imgWidth),
+                Math.floor(bigArmorSizeMM[1] / pageSizeMM[1] * imgHeight)
+            ];
+            smallArmorSize = [
+                Math.floor(smallArmorSizeMM[0] / pageSizeMM[0] * imgWidth),
+                Math.floor(smallArmorSizeMM[1] / pageSizeMM[1] * imgHeight)
+            ];
+            dartArmorSize = [
+                Math.floor(dartArmorSizeMM[0] / pageSizeMM[0] * imgWidth),
+                Math.floor(dartArmorSizeMM[1] / pageSizeMM[1] * imgHeight)
+            ];
+        }
+        
+        // 上传区域点击
+    uploadArea.addEventListener('click', () => fileInput.click());
+        
+        // 拖拽上传
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#764ba2';
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.borderColor = '#667eea';
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#667eea';
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                loadImage(file);
+            }
+        });
+        
+        // 文件选择
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                loadImage(file);
+            }
+        });
+        
+        // 加载图片
+        function loadImage(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    // 根据实际图片尺寸计算装甲板大小
+                    calculateArmorSizes(img.width, img.height);
+                    console.log('图片尺寸:', img.width, 'x', img.height);
+                    console.log('大装甲尺寸:', bigArmorSize);
+                    console.log('小装甲尺寸:', smallArmorSize);
+                    console.log('飞镖装甲尺寸:', dartArmorSize);
+                    drawImage();
+                    uploadArea.style.display = 'none';
+                    canvasContainer.style.display = 'block';
+                    points = [];
+                    labels = [];
+                    // 启用裁剪
+                    startCropBtn.disabled = false;
+                    hasCropped = false;
+                    updateUI();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // 绘制图片和点
+        function drawImage() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            
+            // 绘制所有点
+            points.forEach(point => {
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 绘制文本标注
+            labels.forEach(lbl => {
+                const fontSize = Number(lbl.size) || 18;
+                ctx.font = `${fontSize}px Arial`;
+                ctx.textBaseline = 'top';
+                // 白色描边增强可读性
+                ctx.lineWidth = Math.max(2, Math.floor(fontSize / 9));
+                ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+                ctx.strokeText(lbl.text, lbl.x, lbl.y);
+                // 填充颜色
+                ctx.fillStyle = lbl.color || '#ff3b3b';
+                ctx.fillText(lbl.text, lbl.x, lbl.y);
+            });
+
+            // 如果处于裁剪模式，绘制遮罩和裁剪框
+            if (croppingMode && cropRect) {
+                ctx.save();
+                ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                // 四个遮罩区域
+                ctx.fillRect(0, 0, canvas.width, cropRect.y);
+                ctx.fillRect(0, cropRect.y, cropRect.x, cropRect.h);
+                ctx.fillRect(cropRect.x + cropRect.w, cropRect.y, canvas.width - (cropRect.x + cropRect.w), cropRect.h);
+                ctx.fillRect(0, cropRect.y + cropRect.h, canvas.width, canvas.height - (cropRect.y + cropRect.h));
+                // 边框
+                ctx.strokeStyle = '#00d1b2';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([8, 4]);
+                ctx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+                ctx.setLineDash([]);
+                // 比例提示
+                ctx.fillStyle = '#00d1b2';
+                ctx.font = '14px Arial';
+                const ratioText = `${pageSizeMM[0]}:${pageSizeMM[1]} (≈ ${(pageSizeMM[0]/pageSizeMM[1]).toFixed(3)})`;
+                ctx.fillText(`${Math.round(cropRect.w)}×${Math.round(cropRect.h)} px | 比例 ${ratioText}`, cropRect.x + 8, Math.max(16, cropRect.y - 10));
+                ctx.restore();
+            }
+        }
+        
+        // 画布点击
+        canvas.addEventListener('click', (e) => {
+            if (croppingMode) return; // 裁剪中禁用点击
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (currentMode === 'text' && pendingText) {
+                // 放置文本
+                labels.push({
+                    text: pendingText.text,
+                    x, y,
+                    color: pendingText.color,
+                    size: pendingText.size
+                });
+                pendingText = null;
+                currentMode = 'point';
+                textHint.style.display = 'none';
+                drawImage();
+                updateUI();
+                return;
+            }
+
+            // 默认：记录点
+            points.push({x, y});
+            drawImage();
+            updateUI();
+        });
+        
+        // 更新UI
+        function updateUI() {
+            pointCount.textContent = `已标记点数: ${points.length}`;
+            const hasImage = canvasContainer.style.display === 'block';
+            // 裁剪模式会禁用以下按钮
+            analyzeBtn.disabled = croppingMode || points.length === 0;
+            undoBtn.disabled = croppingMode || points.length === 0;
+            clearBtn.disabled = croppingMode || points.length === 0;
+            // 文本按钮启用逻辑
+            placeTextBtn.disabled = croppingMode || !(hasImage && textInput.value.trim().length > 0);
+            undoTextBtn.disabled = croppingMode || labels.length === 0;
+            clearTextBtn.disabled = croppingMode || labels.length === 0;
+            // 裁剪按钮逻辑
+            startCropBtn.disabled = !hasImage || croppingMode;
+            confirmCropBtn.disabled = !croppingMode || !cropRect || cropRect.w < 2 || cropRect.h < 2;
+            cancelCropBtn.disabled = !croppingMode;
+            // 数据导出按钮
+            downloadDataBtn.disabled = !hasImage || croppingMode;
+        }
+        
+        // 撤销上一点
+        undoBtn.addEventListener('click', () => {
+            points.pop();
+            drawImage();
+            updateUI();
+            stats.style.display = 'none';
+            downloadBtn.disabled = true;
+        });
+        
+        // 清除所有点
+        clearBtn.addEventListener('click', () => {
+            points = [];
+            drawImage();
+            updateUI();
+            stats.style.display = 'none';
+            downloadBtn.disabled = true;
+        });
+
+        // 文本输入变化时，更新按钮状态
+        textInput.addEventListener('input', updateUI);
+
+        // 进入文本放置模式
+        placeTextBtn.addEventListener('click', () => {
+            const text = textInput.value.trim();
+            if (!text) return;
+            pendingText = {
+                text,
+                color: textColor.value || '#ff3b3b',
+                size: Number(textSize.value) || 18
+            };
+            currentMode = 'text';
+            textHint.style.display = 'block';
+        });
+
+        // 撤销文本
+        undoTextBtn.addEventListener('click', () => {
+            labels.pop();
+            pendingText = null;
+            currentMode = 'point';
+            textHint.style.display = 'none';
+            drawImage();
+            updateUI();
+        });
+
+        // 清除所有文本
+        clearTextBtn.addEventListener('click', () => {
+            labels = [];
+            pendingText = null;
+            currentMode = 'point';
+            textHint.style.display = 'none';
+            drawImage();
+            updateUI();
+        });
+        
+        // 分析弹道
+        analyzeBtn.addEventListener('click', () => {
+            if (points.length === 0) return;
+            
+            // 计算平均点
+            let xSum = 0, ySum = 0;
+            points.forEach(p => {
+                xSum += p.x;
+                ySum += p.y;
+            });
+            const xMean = Math.floor(xSum / points.length);
+            const yMean = Math.floor(ySum / points.length);
+            
+            // 重绘图片
+            drawImage();
+            
+            // 绘制中心点
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
+            ctx.beginPath();
+            ctx.arc(xMean, yMean, 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 绘制同心圆
+            for (let i = 1; i <= 10; i++) {
+                ctx.strokeStyle = 'rgba(0, 255, 0, 0.6)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(xMean, yMean, i * 50, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            
+            // 计算得分和距离
+            let totalScore = 0;
+            let totalDistance = 0;
+            let hitSmall = 0, hitLarge = 0, hitDart = 0;
+            
+            points.forEach(point => {
+                const dist = Math.sqrt((point.x - xMean) ** 2 + (point.y - yMean) ** 2);
+                totalDistance += dist;
+                
+                // 计算环数
+                for (let i = 1; i <= 10; i++) {
+                    if (dist <= i * 50) {
+                        const ringScore = 10 - i + 1;
+                        totalScore += ringScore;
+                        
+                        // 标记点和环数
+                        ctx.fillStyle = 'rgba(0, 0, 255, 0.8)';
+                        ctx.beginPath();
+                        ctx.arc(point.x + 5, point.y + 5, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        ctx.fillStyle = 'blue';
+                        ctx.font = '16px Arial';
+                        ctx.fillText(ringScore.toString(), point.x + 10, point.y + 10);
+                        break;
+                    }
+                }
+                
+                // 判断命中装甲板
+                if (Math.abs(point.x - xMean) <= smallArmorSize[0] / 2 &&
+                    Math.abs(point.y - yMean) <= smallArmorSize[1] / 2) {
+                    hitSmall++;
+                }
+                if (Math.abs(point.x - xMean) <= bigArmorSize[0] / 2 &&
+                    Math.abs(point.y - yMean) <= bigArmorSize[1] / 2) {
+                    hitLarge++;
+                }
+                if (Math.abs(point.x - xMean) <= dartArmorSize[0] / 2 &&
+                    Math.abs(point.y - yMean) <= dartArmorSize[1] / 2) {
+                    hitDart++;
+                }
+            });
+            
+            // 绘制装甲板框
+            ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(xMean - smallArmorSize[0] / 2, yMean - smallArmorSize[1] / 2,
+                          smallArmorSize[0], smallArmorSize[1]);
+            
+            ctx.strokeStyle = 'rgba(0, 100, 255, 0.8)';
+            ctx.strokeRect(xMean - bigArmorSize[0] / 2, yMean - bigArmorSize[1] / 2,
+                          bigArmorSize[0], bigArmorSize[1]);
+            
+            ctx.strokeStyle = 'rgba(255, 0, 255, 0.8)';
+            ctx.strokeRect(xMean - dartArmorSize[0] / 2, yMean - dartArmorSize[1] / 2,
+                          dartArmorSize[0], dartArmorSize[1]);
+            
+            // 标记中心
+            ctx.fillStyle = 'blue';
+            ctx.font = '14px Arial';
+            ctx.fillText('center', xMean + 10, yMean - 10);
+            
+            // 显示统计信息
+            ctx.fillStyle = 'blue';
+            ctx.font = 'bold 20px Arial';
+            const avgScore = totalScore / points.length;
+            const avgDist = totalDistance / points.length;
+            
+            ctx.fillText(`score = ${avgScore.toFixed(2)}`, 10, 50);
+            ctx.fillText(`distance = ${avgDist.toFixed(2)}`, 10, 100);
+            ctx.fillStyle = 'rgba(255, 255, 0, 1)';
+            ctx.fillText(`hit_small = ${(hitSmall / points.length * 100).toFixed(1)}%`, 10, 150);
+            ctx.fillStyle = 'rgba(0, 100, 255, 1)';
+            ctx.fillText(`hit_large = ${(hitLarge / points.length * 100).toFixed(1)}%`, 10, 200);
+            ctx.fillStyle = 'rgba(255, 0, 255, 1)';
+            ctx.fillText(`hit_dart = ${(hitDart / points.length * 100).toFixed(1)}%`, 10, 250);
+            
+            // 更新统计面板
+            document.getElementById('scoreValue').textContent = avgScore.toFixed(2);
+            document.getElementById('distanceValue').textContent = avgDist.toFixed(2) + ' px';
+            document.getElementById('smallHitValue').textContent = (hitSmall / points.length * 100).toFixed(1) + '%';
+            document.getElementById('largeHitValue').textContent = (hitLarge / points.length * 100).toFixed(1) + '%';
+            document.getElementById('dartHitValue').textContent = (hitDart / points.length * 100).toFixed(1) + '%';
+            
+            stats.style.display = 'block';
+            downloadBtn.disabled = false;
+        });
+        
+        // 下载结果图
+        downloadBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'ballistic_result.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+
+        // ========= 裁剪交互 =========
+        let croppingMode = false;
+        let isDraggingCrop = false;
+        let cropStart = null; // {x,y}
+        let cropRect = null; // {x,y,w,h}
+
+        function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+        function computeCropFromPointer(sx, sy, mx, my, ratio, cw, ch) {
+            // 锚点固定在 (sx, sy)，根据鼠标位置计算符合比例的矩形，并限制在画布内
+            mx = clamp(mx, 0, cw);
+            my = clamp(my, 0, ch);
+            const sgnX = mx >= sx ? 1 : -1;
+            const sgnY = my >= sy ? 1 : -1;
+            const rawW = Math.abs(mx - sx);
+            const rawH = Math.abs(my - sy);
+            if (rawW === 0 && rawH === 0) {
+                return { x: sx, y: sy, w: 0, h: 0 };
+            }
+            // 先按指针收缩较大的边以匹配比例（而不是扩展较小边）
+            let desiredW, desiredH;
+            if (rawH === 0) {
+                desiredW = rawW;
+                desiredH = desiredW / ratio;
+            } else if (rawW === 0) {
+                desiredH = rawH;
+                desiredW = desiredH * ratio;
+            } else if (rawW / rawH > ratio) {
+                // 过宽：用高度决定，压缩宽度
+                desiredH = rawH;
+                desiredW = desiredH * ratio;
+            } else {
+                // 过高：用宽度决定，压缩高度
+                desiredW = rawW;
+                desiredH = desiredW / ratio;
+            }
+
+            // 受边界限制：在不移动锚点的前提下，缩小到可用范围
+            const maxW = sgnX > 0 ? (cw - sx) : sx;
+            const maxH = sgnY > 0 ? (ch - sy) : sy;
+            const scale = Math.min(1, maxW / desiredW, maxH / desiredH);
+            const w = Math.max(0, desiredW * scale);
+            const h = Math.max(0, desiredH * scale);
+            const x = sgnX > 0 ? sx : sx - w;
+            const y = sgnY > 0 ? sy : sy - h;
+            return { x, y, w, h };
+        }
+
+        function beginCrop() {
+            croppingMode = true;
+            isDraggingCrop = false;
+            cropStart = null;
+            cropRect = null;
+            cropHint.style.display = 'block';
+            textHint.style.display = 'none';
+            currentMode = 'point';
+            pendingText = null;
+            updateUI();
+            drawImage();
+        }
+
+        function endCrop(cancel = false) {
+            croppingMode = false;
+            isDraggingCrop = false;
+            cropStart = null;
+            if (cancel) cropRect = null;
+            cropHint.style.display = 'none';
+            updateUI();
+            drawImage();
+        }
+
+        startCropBtn.addEventListener('click', () => {
+            beginCrop();
+        });
+
+        cancelCropBtn.addEventListener('click', () => {
+            endCrop(true);
+        });
+
+        confirmCropBtn.addEventListener('click', () => {
+            if (!cropRect) return;
+            // 执行裁剪
+            const off = document.createElement('canvas');
+            off.width = Math.max(1, Math.round(cropRect.w));
+            off.height = Math.max(1, Math.round(cropRect.h));
+            const octx = off.getContext('2d');
+            octx.drawImage(
+                img,
+                Math.round(cropRect.x),
+                Math.round(cropRect.y),
+                Math.round(cropRect.w),
+                Math.round(cropRect.h),
+                0, 0,
+                off.width,
+                off.height
+            );
+            const dataUrl = off.toDataURL();
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                actualImgShape = [img.width, img.height];
+                // 更新物理页面尺寸（已由选择的纸张和方向确定）
+                pageSizeMM = getPageSizeMM();
+                // 重新计算装甲尺寸
+                calculateArmorSizes(img.width, img.height);
+                // 裁剪后清理标注与统计
+                points = [];
+                labels = [];
+                stats.style.display = 'none';
+                downloadBtn.disabled = true;
+                hasCropped = true;
+                endCrop();
+            };
+            img.src = dataUrl;
+        });
+
+        // 画布裁剪事件
+        canvas.addEventListener('mousedown', (e) => {
+            if (!croppingMode) return;
+            const rect = canvas.getBoundingClientRect();
+            const x0 = e.clientX - rect.left;
+            const y0 = e.clientY - rect.top;
+            cropStart = { x: clamp(x0, 0, canvas.width), y: clamp(y0, 0, canvas.height) };
+            cropRect = { x: cropStart.x, y: cropStart.y, w: 0, h: 0 };
+            isDraggingCrop = true;
+        });
+        canvas.addEventListener('mousemove', (e) => {
+            if (!croppingMode || !isDraggingCrop || !cropStart) return;
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const ratio = pageSizeMM[0] / pageSizeMM[1]; // w/h
+            cropRect = computeCropFromPointer(cropStart.x, cropStart.y, mx, my, ratio, canvas.width, canvas.height);
+            drawImage();
+            updateUI();
+        });
+        window.addEventListener('mouseup', () => {
+            if (!croppingMode) return;
+            isDraggingCrop = false;
+            updateUI();
+        });
+
+        // 页面尺寸与方向变更
+        paperSizeSelect.addEventListener('change', () => {
+            selectedPaperKey = paperSizeSelect.value;
+            pageSizeMM = getPageSizeMM();
+            if (img && img.width) {
+                calculateArmorSizes(img.width, img.height);
+                drawImage();
+            }
+            updateUI();
+        });
+        landscapeBtn.addEventListener('click', () => {
+            orientation = 'landscape';
+            landscapeBtn.classList.add('active');
+            pageSizeMM = getPageSizeMM();
+            if (img && img.width) {
+                calculateArmorSizes(img.width, img.height);
+                drawImage();
+            }
+            updateUI();
+        });
+
+        // ========= 数据导出 =========
+        function gatherExportData() {
+            // 读取分析结果（若存在）
+            let analysis = null;
+            if (stats && stats.style.display !== 'none') {
+                const parsePercent = (s) => {
+                    if (!s) return null;
+                    const v = parseFloat(String(s).replace('%',''));
+                    return isNaN(v) ? null : v;
+                };
+                const parsePx = (s) => {
+                    if (!s) return null;
+                    const v = parseFloat(String(s).replace('px',''));
+                    return isNaN(v) ? null : v;
+                };
+                analysis = {
+                    avgScore: parseFloat(document.getElementById('scoreValue')?.textContent) || null,
+                    avgDistancePx: parsePx(document.getElementById('distanceValue')?.textContent),
+                    hitSmallPercent: parsePercent(document.getElementById('smallHitValue')?.textContent),
+                    hitLargePercent: parsePercent(document.getElementById('largeHitValue')?.textContent),
+                    hitDartPercent: parsePercent(document.getElementById('dartHitValue')?.textContent)
+                };
+            }
+
+            return {
+                timestamp: new Date().toISOString(),
+                image: { width: canvas.width, height: canvas.height },
+                page: { key: selectedPaperKey, orientation, sizeMM: [...pageSizeMM] },
+                cropped: hasCropped,
+                armorMM: {
+                    big: [...bigArmorSizeMM],
+                    small: [...smallArmorSizeMM],
+                    dart: [...dartArmorSizeMM]
+                },
+                armorPx: {
+                    big: [...bigArmorSize],
+                    small: [...smallArmorSize],
+                    dart: [...dartArmorSize]
+                },
+                points: points.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
+                labels: labels.map(l => ({ text: l.text, x: Math.round(l.x), y: Math.round(l.y), color: l.color, size: l.size })),
+                analysis
+            };
+        }
+
+        function downloadJSON(data, filename) {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function timestampName() {
+            const d = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+        }
+
+        downloadDataBtn.addEventListener('click', () => {
+            const data = gatherExportData();
+            downloadJSON(data, `ballistic_data_${timestampName()}.json`);
+        });
+    </script>
+</body>
+</html>
