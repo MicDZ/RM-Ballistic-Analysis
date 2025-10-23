@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>弹道计分系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <title>弹道分析系统</title>
     <style>
         * {
             margin: 0;
@@ -54,6 +55,7 @@
             min-width: 600px;
             padding: 30px;
             border-right: 2px solid #eee;
+            position: relative; /* 使右上角缩略图定位 */
         }
         
         .control-section {
@@ -100,6 +102,36 @@
             display: block;
             cursor: crosshair;
         }
+
+        /* 缩放控件 */
+        .zoom-controls {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 10px;
+        }
+        .zoom-controls .btn { width: auto; min-width: 80px; }
+
+        /* 右上角缩略图（小地图） */
+        .minimap-wrap {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255,255,255,0.95);
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 6px;
+            z-index: 10;
+            user-select: none;
+        }
+        .minimap-title {
+            font-size: 12px;
+            color: #667eea;
+            margin-bottom: 4px;
+            text-align: right;
+        }
+        #miniMap { display: block; background: #fff; border-radius: 4px; }
         
         .btn {
             width: 100%;
@@ -112,6 +144,22 @@
             transition: all 0.3s;
             font-weight: bold;
         }
+        /* 禁用态统一置灰 */
+        .btn:disabled {
+            background: #e5e7eb !important; /* slate-200 */
+            color: #9ca3af !important;      /* gray-400 */
+            cursor: not-allowed !important;
+            box-shadow: none !important;
+            transform: none !important;
+            opacity: 1 !important;          /* 不使用半透明，保持清晰对比 */
+        }
+        /* 可触发态强调色（用于次级按钮如 撤销 / 裁剪 / 保存） */
+        .btn--active {
+            background: linear-gradient(135deg, #22c1c3 0%, #667eea 100%) !important;
+            color: #fff !important;
+        }
+        /* 图标与文字的间距，仅按钮内生效 */
+        .btn i { margin-right: 6px; }
         .btn-compact { padding: 10px 10px; font-size: 0.9em; margin: 0; }
         .btn-row, .btn-grid { width: 100%; }
         .btn-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -134,6 +182,15 @@
         
         .btn-secondary:hover {
             background: #5a6268;
+        }
+
+        /* 加载示例按钮（仅该按钮调浅一些） */
+        #loadDemoBtn {
+            background: #e9f0ff; /* 更浅的蓝灰色背景 */
+            color: #2f3e6d;      /* 稍深文字提高对比 */
+        }
+        #loadDemoBtn:hover {
+            background: #dbe7ff; /* 悬停时略微加深 */
         }
         
         .btn-danger {
@@ -339,21 +396,35 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎯 弹道计分系统</h1>
+            <h1><i class="fa-solid fa-bullseye" aria-hidden="true"></i> 弹道分析系统</h1>
             <p>上传靶纸图片，点击标记弹孔位置，自动计算得分和精度</p>
         </div>
         
         <div class="main-content">
             <div class="canvas-section">
                 <div class="upload-area" id="uploadArea">
-                    <div style="font-size: 3em; margin-bottom: 15px;">📤</div>
+                    <div style="font-size: 3em; margin-bottom: 15px;"><i class="fa-solid fa-upload" aria-hidden="true"></i></div>
                     <h3>点击或拖拽上传靶纸图片</h3>
                     <p style="color: #666; margin-top: 10px;">支持 JPG、PNG 格式</p>
+                    <div class="form-row" style="justify-content:center; margin-top: 10px;">
+                        <button class="btn btn-secondary btn-compact" id="loadDemoBtn" title="加载示例图片">
+                            <i class="fa-solid fa-image" aria-hidden="true"></i> 加载示例
+                        </button>
+                    </div>
                     <input type="file" id="fileInput" accept="image/*">
                 </div>
                 
                 <div class="canvas-container" id="canvasContainer" style="display: none;">
                     <canvas id="canvas"></canvas>
+                </div>
+                <div class="zoom-controls" id="zoomControls" style="display:none;">
+                    <button class="btn btn-secondary btn-compact" id="zoomOutBtn" title="缩小"><i class="fa-solid fa-magnifying-glass-minus" aria-hidden="true"></i> 缩小</button>
+                    <button class="btn btn-secondary btn-compact" id="zoomInBtn" title="放大"><i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i> 放大</button>
+                </div>
+
+                <div class="minimap-wrap" id="miniMapWrap" style="display:none;" aria-label="缩略图导航">
+                    <div class="minimap-title">预览</div>
+                    <canvas id="miniMap" width="180" height="120"></canvas>
                 </div>
             </div>
             
@@ -361,15 +432,15 @@
                 <div class="point-count" id="pointCount">已标记点数: 0</div>
                 
                 <div class="btn-grid" aria-label="primary actions">
-                    <button class="btn btn-primary btn-compact" id="analyzeBtn" disabled title="分析弹道">📊 分析</button>
-                    <button class="btn btn-secondary btn-compact" id="undoBtn" disabled title="撤销上一点">↩️ 撤销</button>
-                    <button class="btn btn-danger btn-compact" id="clearBtn" disabled title="清除所有点">🗑️ 清除</button>
-                    <button class="btn btn-secondary btn-compact" id="downloadBtn" disabled title="下载结果图">💾 图像</button>
-                    <button class="btn btn-secondary btn-compact" id="downloadDataBtn" disabled title="下载数据JSON">🧾 数据</button>
+                    <button class="btn btn-primary btn-compact" id="analyzeBtn" disabled title="分析弹道"><i class="fa-solid fa-chart-bar" aria-hidden="true"></i> 分析</button>
+                    <button class="btn btn-secondary btn-compact" id="undoBtn" disabled title="撤销上一点"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> 撤销</button>
+                    <button class="btn btn-danger btn-compact" id="clearBtn" disabled title="清除所有点"><i class="fa-solid fa-trash" aria-hidden="true"></i> 清除</button>
+                    <button class="btn btn-secondary btn-compact" id="downloadBtn" disabled title="下载结果图和JSON数据"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> 保存</button>
+                    <!-- <button class="btn btn-secondary btn-compact" id="downloadDataBtn" disabled title="下载数据JSON"><i class="fa-solid fa-file-invoice" aria-hidden="true"></i> 数据</button> -->
                 </div>
 
                 <div class="center-controls">
-                    <h3>🎯 靶中心模式</h3>
+                    <h3><i class="fa-solid fa-bullseye" aria-hidden="true"></i> 靶中心模式</h3>
                     <div class="form-row" style="justify-content:flex-start;">
                         <div class="segmented" role="group" aria-label="center mode">
                             <button id="centerModePointsBtn" class="active">点群中心</button>
@@ -380,14 +451,14 @@
                 </div>
 
                 <div class="paper-controls">
-                    <h3>📄 裁剪</h3>
+                    <h3><i class="fa-solid fa-file-lines" aria-hidden="true"></i> 裁剪</h3>
                     <div class="form-row" style="justify-content: flex-end;">
-                        <button class="btn btn-secondary btn-compact" id="startCropBtn" disabled title="打开裁剪弹窗">✂️ 开始裁剪</button>
+                        <button class="btn btn-secondary btn-compact" id="startCropBtn" disabled title="打开裁剪弹窗"><i class="fa-solid fa-scissors" aria-hidden="true"></i> 开始裁剪</button>
                     </div>
                 </div>
 
                 <div class="text-controls">
-                    <h3>📝 文本标注</h3>
+                    <h3><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> 文本标注</h3>
                     <div class="form-row">
                         <input type="text" id="textInput" class="text-input" placeholder="输入要标注的文本...">
                     </div>
@@ -406,15 +477,15 @@
                         <input type="color" id="textColor" class="text-color" value="#ff3b3b">
                     </div>
                     <div class="btn-grid" aria-label="text actions">
-                        <button class="btn btn-primary btn-compact" id="placeTextBtn" disabled title="放置文本">🖊️ 放置</button>
-                        <button class="btn btn-secondary btn-compact" id="undoTextBtn" disabled title="撤销文本">↩️ 撤销</button>
-                        <button class="btn btn-danger btn-compact" id="clearTextBtn" disabled title="清除文本">🗑️ 清除</button>
+                        <button class="btn btn-primary btn-compact" id="placeTextBtn" disabled title="放置文本"><i class="fa-solid fa-pen" aria-hidden="true"></i> 放置</button>
+                        <button class="btn btn-secondary btn-compact" id="undoTextBtn" disabled title="撤销文本"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> 撤销</button>
+                        <button class="btn btn-danger btn-compact" id="clearTextBtn" disabled title="清除文本"><i class="fa-solid fa-trash" aria-hidden="true"></i> 清除</button>
                     </div>
                     <div class="hint" id="textHint" style="display:none;">已进入文本放置模式：点击画布确定位置</div>
                 </div>
 
                 <div class="stats" id="stats" style="display: none;">
-                    <h3 style="margin-bottom: 15px; color: #667eea;">📈 分析结果</h3>
+                    <h3 style="margin-bottom: 15px; color: #667eea;"><i class="fa-solid fa-chart-line" aria-hidden="true"></i> 分析结果</h3>
                     <div class="stat-item">
                         <span class="stat-label">平均环数</span>
                         <span class="stat-value" id="scoreValue">-</span>
@@ -443,7 +514,7 @@
     <!-- 裁剪弹窗 -->
     <div class="modal-overlay" id="cropModal" aria-hidden="true" role="dialog" aria-label="裁剪图片">
         <div class="modal" id="cropModalContent">
-            <div class="modal-header">✂️ 裁剪图片</div>
+            <div class="modal-header"><i class="fa-solid fa-scissors" aria-hidden="true"></i> 裁剪图片</div>
             <div class="modal-body">
                 <div class="crop-toolbar">
                     <label for="modalPaperSizeSelect" class="stat-label" style="min-width: 30px;">尺寸</label>
@@ -461,8 +532,24 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-danger btn-compact" id="cropCancelBtn" title="取消">取消</button>
-                <button class="btn btn-primary btn-compact" id="cropConfirmBtn" title="确认裁剪">确认裁剪</button>
+                <button class="btn btn-danger btn-compact" id="cropCancelBtn" title="取消"><i class="fa-solid fa-xmark" aria-hidden="true"></i> 取消</button>
+                <button class="btn btn-primary btn-compact" id="cropConfirmBtn" title="确认裁剪"><i class="fa-solid fa-check" aria-hidden="true"></i> 确认裁剪</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 下载完成提示 + Star 引导弹窗 -->
+    <div class="modal-overlay" id="starModal" aria-hidden="true" role="dialog" aria-label="提示">
+        <div class="modal">
+            <div class="modal-header"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> 已加入下载队列</div>
+            <div class="modal-body">
+                <p style="margin-bottom:8px;">如果你喜欢这个应用，方便去 GitHub 点个 Star 支持一下吗？</p>
+                <p class="hint">Star 能帮助我持续改进与维护，感谢支持！</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-compact" id="starLaterBtn" title="稍后再说">稍后</button>
+                <button class="btn btn-primary btn-compact" id="starGoBtn" title="前往 GitHub 仓库">去看看</button>
+               
             </div>
         </div>
     </div>
@@ -477,9 +564,13 @@
         const undoBtn = document.getElementById('undoBtn');
         const clearBtn = document.getElementById('clearBtn');
         const downloadBtn = document.getElementById('downloadBtn');
-    const downloadDataBtn = document.getElementById('downloadDataBtn');
+        const downloadDataBtn = document.getElementById('downloadDataBtn');
         const pointCount = document.getElementById('pointCount');
         const stats = document.getElementById('stats');
+    // Star 弹窗
+    const starModal = document.getElementById('starModal');
+    const starLaterBtn = document.getElementById('starLaterBtn');
+    const starGoBtn = document.getElementById('starGoBtn');
     // 裁剪控件（弹窗）
     const startCropBtn = document.getElementById('startCropBtn');
     const cropModal = document.getElementById('cropModal');
@@ -488,6 +579,7 @@
     const modalPaperSizeSelect = document.getElementById('modalPaperSizeSelect');
     const cropConfirmBtn = document.getElementById('cropConfirmBtn');
     const cropCancelBtn = document.getElementById('cropCancelBtn');
+    const loadDemoBtn = document.getElementById('loadDemoBtn');
     // 文本标注相关控件
     const textInput = document.getElementById('textInput');
     const textSize = document.getElementById('textSize');
@@ -499,6 +591,13 @@
     // 靶中心模式控件
     const centerModePointsBtn = document.getElementById('centerModePointsBtn');
     const centerModeImageBtn = document.getElementById('centerModeImageBtn');
+    // 显示缩放与小地图
+    const zoomControls = document.getElementById('zoomControls');
+    const zoomInBtn = document.getElementById('zoomInBtn');
+    const zoomOutBtn = document.getElementById('zoomOutBtn');
+    const miniMapWrap = document.getElementById('miniMapWrap');
+    const miniMap = document.getElementById('miniMap');
+    const miniCtx = miniMap ? miniMap.getContext('2d') : null;
         
         let img = new Image();
         let points = [];
@@ -530,6 +629,183 @@
     let thumbScale = 1; // original = thumb / thumbScale
     let thumbCropStart = null; // {x,y}
     let thumbCropRect = null; // {x,y,w,h}
+    // 显示缩放（仅影响显示，不影响渲染与计算）
+    let displayScale = 1; // CSS transform scale
+
+    function clamp(val, min, max) {
+        return Math.max(min, Math.min(max, val));
+    }
+
+    function setDisplayScale(newScale) {
+        const cont = canvasContainer;
+        if (!cont || !canvas) return;
+        const oldScale = displayScale;
+        newScale = clamp(newScale, 0.2, 4);
+        // 记录当前视窗中心，缩放后保持中心不变
+        const prevCenterX = cont.scrollLeft + cont.clientWidth / 2;
+        const prevCenterY = cont.scrollTop + cont.clientHeight / 2;
+        displayScale = newScale;
+        canvas.style.transformOrigin = 'top left';
+        canvas.style.transform = `scale(${displayScale})`;
+        const ratio = displayScale / oldScale;
+        const nextCenterX = prevCenterX * ratio;
+        const nextCenterY = prevCenterY * ratio;
+        cont.scrollLeft = nextCenterX - cont.clientWidth / 2;
+        cont.scrollTop = nextCenterY - cont.clientHeight / 2;
+        drawMiniMap();
+    }
+
+    function ensureDisplayUIVisible() {
+        if (zoomControls) zoomControls.style.display = 'flex';
+        if (miniMapWrap) miniMapWrap.style.display = 'block';
+    }
+
+    function drawMiniMap() {
+        if (!miniMap || !miniCtx || !img || !img.width) return;
+        const mw = miniMap.width;
+        const mh = miniMap.height;
+        miniCtx.clearRect(0, 0, mw, mh);
+        // 背景
+        miniCtx.fillStyle = '#fff';
+        miniCtx.fillRect(0, 0, mw, mh);
+        const scale = Math.min(mw / canvas.width, mh / canvas.height);
+        const iw = canvas.width * scale;
+        const ih = canvas.height * scale;
+        const ox = (mw - iw) / 2;
+        const oy = (mh - ih) / 2;
+        // 图像
+        miniCtx.drawImage(img, 0, 0, img.width, img.height, ox, oy, iw, ih);
+        // 视窗矩形（由主容器滚动与显示缩放决定）
+        if (canvasContainer) {
+            const viewW = canvasContainer.clientWidth / displayScale * scale;
+            const viewH = canvasContainer.clientHeight / displayScale * scale;
+            const viewX = ox + (canvasContainer.scrollLeft / displayScale) * scale;
+            const viewY = oy + (canvasContainer.scrollTop / displayScale) * scale;
+            miniCtx.save();
+            miniCtx.lineWidth = 2;
+            miniCtx.strokeStyle = '#667eea';
+            miniCtx.strokeRect(viewX, viewY, viewW, viewH);
+            miniCtx.restore();
+        }
+    }
+
+    // 小地图拖动导航
+    function attachMiniMapInteractions() {
+        if (!miniMap) return;
+        let dragging = false;
+        const onDown = (e) => { dragging = true; onMove(e); };
+        const onUp = () => { dragging = false; };
+        const onMove = (e) => {
+            if (!dragging) return;
+            const rect = miniMap.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const mw = miniMap.width, mh = miniMap.height;
+            const scale = Math.min(mw / canvas.width, mh / canvas.height);
+            const iw = canvas.width * scale;
+            const ih = canvas.height * scale;
+            const ox = (mw - iw) / 2;
+            const oy = (mh - ih) / 2;
+            const imgX = clamp((x - ox) / scale, 0, canvas.width);
+            const imgY = clamp((y - oy) / scale, 0, canvas.height);
+            const cont = canvasContainer;
+            if (!cont) return;
+            const targetScrollLeft = imgX * displayScale - cont.clientWidth / 2;
+            const targetScrollTop = imgY * displayScale - cont.clientHeight / 2;
+            cont.scrollLeft = clamp(targetScrollLeft, 0, canvas.width * displayScale - cont.clientWidth);
+            cont.scrollTop = clamp(targetScrollTop, 0, canvas.height * displayScale - cont.clientHeight);
+            drawMiniMap();
+        };
+        miniMap.addEventListener('mousedown', onDown);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        // 触屏
+        miniMap.addEventListener('touchstart', (e) => { if (e.touches[0]) onDown(e.touches[0]); }, {passive:true});
+        miniMap.addEventListener('touchmove', (e) => { if (e.touches[0]) onMove(e.touches[0]); }, {passive:true});
+        miniMap.addEventListener('touchend', onUp);
+    }
+    
+        // ========= 导出二维码与水印 =========
+        // 若无法从文件加载，使用内置回退矩阵
+        const QR_FALLBACK = [[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,1,1,1,1,1,1,0,1,0,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,1,0,0,1,0,1,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0],[0,0,0,0,1,0,1,1,1,0,1,0,1,1,0,1,1,1,0,1,0,0,1,0,1,1,1,0,1,0,0,0,0],[0,0,0,0,1,0,1,1,1,0,1,0,0,1,1,1,1,1,0,1,0,0,1,0,1,1,1,0,1,0,0,0,0],[0,0,0,0,1,0,1,1,1,0,1,0,0,1,1,0,1,0,1,0,0,0,1,0,1,1,1,0,1,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,1,0,1,0,1,1,0,1,1,0,1,0,1,0,0,0,0,0,1,0,0,0,0],[0,0,0,0,1,1,1,1,1,1,1,0,1,0,1,0,1,0,1,0,1,0,1,1,1,1,1,1,1,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,1,0,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,1,0,0,1,0,1,0,0,0,0],[0,0,0,0,0,1,1,0,0,0,0,0,0,1,0,1,1,0,0,1,1,1,1,1,0,1,0,1,1,0,0,0,0],[0,0,0,0,1,1,0,0,1,1,1,1,1,0,0,1,0,0,1,1,0,0,1,0,0,1,1,0,1,0,0,0,0],[0,0,0,0,1,1,0,0,1,0,0,1,0,0,0,0,1,0,1,1,1,1,1,1,0,1,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,1,0,0,0,0,1,0,1,0,0,0,0,1,0,0,0,0],[0,0,0,0,0,0,1,0,0,0,0,1,0,1,0,0,0,1,0,1,1,1,1,1,0,0,0,1,1,0,0,0,0],[0,0,0,0,1,1,0,1,1,0,1,1,1,1,1,1,0,0,0,1,0,0,1,0,0,1,1,0,1,0,0,0,0],[0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0],[0,0,0,0,1,1,1,0,1,0,1,0,1,1,0,1,1,0,0,1,0,0,1,1,1,0,0,1,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,1,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0],[0,0,0,0,1,1,1,1,1,1,1,0,1,1,1,0,1,1,0,0,1,0,1,0,1,0,0,0,1,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,1,1,0,1,1,1,0,0,0,1,0,0,0,1,0,0,0,0],[0,0,0,0,1,0,1,1,1,0,1,0,0,0,1,0,0,1,1,1,1,1,1,1,1,0,0,0,1,0,0,0,0],[0,0,0,0,1,0,1,1,1,0,1,0,1,0,1,1,0,0,0,0,1,1,0,1,1,1,0,1,1,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,1,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0],[0,0,0,0,1,1,1,1,1,1,1,0,1,0,1,1,1,1,0,0,1,1,0,0,0,1,0,0,1,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]];
+        let qrMatrixCache = null;
+        function getQRCodeMatrix() {
+            if (qrMatrixCache) return Promise.resolve(qrMatrixCache);
+            // 优先尝试加载外部文件 qrcode.json（支持两种格式：[[]] 或 {qr:[[]]}）
+            return fetch('qrcode.json').then(r => r.json()).then(data => {
+                const matrix = Array.isArray(data) ? data : (Array.isArray(data?.qr) ? data.qr : null);
+                if (Array.isArray(matrix) && matrix.length > 0) {
+                    qrMatrixCache = matrix;
+                    return matrix;
+                }
+                qrMatrixCache = QR_FALLBACK;
+                return QR_FALLBACK;
+            }).catch(() => {
+                qrMatrixCache = QR_FALLBACK;
+                return QR_FALLBACK;
+            });
+        }
+
+        function drawQrAndWatermark(ctx, matrix, urlText) {
+            if (!ctx || !matrix || !Array.isArray(matrix) || matrix.length === 0) return;
+            const M = matrix.length; // 高
+            const N = matrix[0].length; // 宽
+            if (!N || !M) return;
+
+            const W = ctx.canvas.width;
+            const H = ctx.canvas.height;
+            const pad = Math.round(Math.max(8, Math.min(W, H) * 0.015));
+            const targetSize = Math.round(Math.max(96, Math.min(180, Math.min(W, H) * 0.18))); // 约 18% 边长
+            const margin = Math.max(2, Math.floor(targetSize * 0.06));
+            let cellSize = Math.floor((targetSize - margin * 2) / Math.max(N, M));
+            cellSize = Math.max(2, cellSize);
+            const qrW = N * cellSize + margin * 2;
+            const qrH = M * cellSize + margin * 2;
+
+            const fontSize = Math.max(10, Math.floor(Math.min(W, H) * 0.018));
+            const textGap = Math.max(4, Math.floor(fontSize * 0.4));
+            const text = urlText || 'https://rm.mcdz.cn';
+
+            const totalH = qrH + textGap + fontSize;
+            const x0 = W - pad - (qrW);
+            const y0 = H - pad - totalH;
+
+            // 背景白底
+            ctx.save();
+            ctx.fillStyle = 'rgba(255,255,255,0.92)';
+            ctx.fillRect(x0, y0, qrW, qrH);
+            ctx.restore();
+
+            // 画 QR
+            ctx.save();
+            ctx.fillStyle = '#111';
+            for (let r = 0; r < M; r++) {
+                for (let c = 0; c < N; c++) {
+                    if (matrix[r][c]) {
+                        const x = x0 + margin + c * cellSize;
+                        const y = y0 + margin + r * cellSize;
+                        ctx.fillRect(x, y, cellSize, cellSize);
+                    }
+                }
+            }
+            ctx.restore();
+
+            // 文本（水印链接）
+            ctx.save();
+            ctx.font = `${fontSize}px Arial`;
+            ctx.textBaseline = 'bottom';
+            ctx.textAlign = 'right';
+            const tx = W - pad;
+            const ty = H - pad;
+            // 先描边提高可读性
+            ctx.lineWidth = Math.max(2, Math.floor(fontSize / 6));
+            ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+            ctx.strokeText(text, tx, ty);
+            // 再填充
+            ctx.fillStyle = '#333';
+            ctx.fillText(text, tx, ty);
+            ctx.restore();
+        }
         
         // 装甲板实际尺寸（毫米）
         let bigArmorSizeMM = [230, 127];
@@ -556,6 +832,74 @@
                 Math.floor(dartArmorSizeMM[0] / pageSizeMM[0] * imgWidth),
                 Math.floor(dartArmorSizeMM[1] / pageSizeMM[1] * imgHeight)
             ];
+        }
+
+        // 将图片统一缩放到固定宽度（默认 1080），返回 Promise<HTMLImageElement>
+        function resizeImageToWidth(srcImage, targetWidth = 1080) {
+            return new Promise((resolve) => {
+                const scale = targetWidth / srcImage.width;
+                const w = Math.max(1, Math.round(targetWidth));
+                const h = Math.max(1, Math.round(srcImage.height * scale));
+                const off = document.createElement('canvas');
+                off.width = w;
+                off.height = h;
+                const offCtx = off.getContext('2d');
+                // 使用高质量缩放
+                offCtx.imageSmoothingEnabled = true;
+                offCtx.imageSmoothingQuality = 'high';
+                offCtx.drawImage(srcImage, 0, 0, srcImage.width, srcImage.height, 0, 0, w, h);
+                const dataURL = off.toDataURL('image/png');
+                const out = new Image();
+                out.onload = () => resolve(out);
+                out.src = dataURL;
+            });
+        }
+
+        // 从 URL 加载图片并初始化（用于加载示例）
+        async function loadImageFromURL(url) {
+            try {
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`请求失败: ${resp.status}`);
+                const blob = await resp.blob();
+                const objURL = URL.createObjectURL(blob);
+                const tmp = new Image();
+                tmp.onload = () => {
+                    resizeImageToWidth(tmp, 1080).then((resized) => {
+                        img = resized;
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        calculateArmorSizes(img.width, img.height);
+                        drawImage();
+                        // 显示主画布、隐藏上传区
+                        uploadArea.style.display = 'none';
+                        canvasContainer.style.display = 'block';
+                        // 重置显示缩放
+                        displayScale = 1;
+                        canvas.style.transformOrigin = 'top left';
+                        canvas.style.transform = `scale(${displayScale})`;
+                        ensureDisplayUIVisible();
+                        // 重置状态
+                        points = [];
+                        labels = [];
+                        lastAnalysisCenter = null;
+                        stats.style.display = 'none';
+                        downloadBtn.disabled = true;
+                        startCropBtn.disabled = false;
+                        hasCropped = false;
+                        updateUI();
+                        drawMiniMap();
+                        URL.revokeObjectURL(objURL);
+                    });
+                };
+                tmp.onerror = () => {
+                    URL.revokeObjectURL(objURL);
+                    alert('示例图片加载失败');
+                };
+                tmp.src = objURL;
+            } catch (err) {
+                console.error(err);
+                alert('无法加载示例图片');
+            }
         }
         
         // 上传区域点击
@@ -587,32 +931,53 @@
                 loadImage(file);
             }
         });
+
+        // 加载示例图片
+        if (loadDemoBtn) {
+            loadDemoBtn.addEventListener('click', (e) => {
+                // 阻止冒泡到 uploadArea，避免触发文件选择对话框
+                e.preventDefault();
+                e.stopPropagation();
+                // 默认从同目录加载 demo.jpg
+                loadImageFromURL('demo.jpg');
+            });
+        }
         
         // 加载图片
         function loadImage(file) {
             const reader = new FileReader();
             reader.onload = (e) => {
                 img.onload = () => {
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    // 根据实际图片尺寸计算装甲板大小
-                    calculateArmorSizes(img.width, img.height);
-                    console.log('图片尺寸:', img.width, 'x', img.height);
-                    console.log('大装甲尺寸:', bigArmorSize);
-                    console.log('小装甲尺寸:', smallArmorSize);
-                    console.log('飞镖装甲尺寸:', dartArmorSize);
-                    drawImage();
-                    uploadArea.style.display = 'none';
-                    canvasContainer.style.display = 'block';
-                    points = [];
-                    labels = [];
-                    lastAnalysisCenter = null;
-                    stats.style.display = 'none';
-                    downloadBtn.disabled = true;
-                    // 启用裁剪
-                    startCropBtn.disabled = false;
-                    hasCropped = false;
-                    updateUI();
+                    // 统一缩放到宽度 1080 再进行后续绘制与计算
+                    resizeImageToWidth(img, 1080).then((resized) => {
+                        img = resized;
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        // 根据缩放后的图片尺寸计算装甲板大小（保证物理参数一致映射）
+                        calculateArmorSizes(img.width, img.height);
+                        console.log('图片尺寸(缩放后):', img.width, 'x', img.height);
+                        console.log('大装甲尺寸(px):', bigArmorSize);
+                        console.log('小装甲尺寸(px):', smallArmorSize);
+                        console.log('飞镖装甲尺寸(px):', dartArmorSize);
+                        drawImage();
+                        // 重置显示缩放
+                        displayScale = 1;
+                        canvas.style.transformOrigin = 'top left';
+                        canvas.style.transform = `scale(${displayScale})`;
+                        uploadArea.style.display = 'none';
+                        canvasContainer.style.display = 'block';
+                        ensureDisplayUIVisible();
+                        points = [];
+                        labels = [];
+                        lastAnalysisCenter = null;
+                        stats.style.display = 'none';
+                        downloadBtn.disabled = true;
+                        // 启用裁剪
+                        startCropBtn.disabled = false;
+                        hasCropped = false;
+                        updateUI();
+                        drawMiniMap();
+                    });
                 };
                 img.src = e.target.result;
             };
@@ -654,8 +1019,8 @@
             // 弹窗打开时主画布交互被遮挡；此处保险返回
             if (isCropModalOpen) return;
             const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            const x = (e.clientX - rect.left) / displayScale;
+            const y = (e.clientY - rect.top) / displayScale;
 
             if (currentMode === 'text' && pendingText) {
                 // 放置文本
@@ -693,8 +1058,18 @@
             clearTextBtn.disabled = isCropModalOpen || labels.length === 0;
             // 裁剪按钮逻辑
             startCropBtn.disabled = !hasImage || isCropModalOpen;
-            // 数据导出按钮
-            downloadDataBtn.disabled = !hasImage || isCropModalOpen;
+            // 显示缩放与小地图
+            if (hasImage && !isCropModalOpen) {
+                ensureDisplayUIVisible();
+                drawMiniMap();
+            } else {
+                if (zoomControls) zoomControls.style.display = 'none';
+                if (miniMapWrap) miniMapWrap.style.display = 'none';
+            }
+            // 数据导出按钮（若存在独立数据按钮，则控制其状态）
+            if (downloadDataBtn) {
+                downloadDataBtn.disabled = !hasImage || isCropModalOpen;
+            }
             // 靶中心模式切换按钮
             if (centerModePointsBtn && centerModeImageBtn) {
                 centerModePointsBtn.disabled = !hasImage || isCropModalOpen;
@@ -702,24 +1077,35 @@
                 centerModePointsBtn.classList.toggle('active', centerMode === 'points');
                 centerModeImageBtn.classList.toggle('active', centerMode === 'image');
             }
+
+            // 统一根据可触发状态设置强调色（仅视觉，不改变现有逻辑）
+            const setActiveVisual = (btn) => {
+                if (!btn) return;
+                btn.classList.toggle('btn--active', !btn.disabled);
+            };
+            // 撤销（主）、裁剪、保存（含数据保存）
+            setActiveVisual(undoBtn);
+            setActiveVisual(startCropBtn);
+            setActiveVisual(downloadBtn);
+            setActiveVisual(downloadDataBtn);
         }
         
         // 撤销上一点
         undoBtn.addEventListener('click', () => {
             points.pop();
             drawImage();
-            updateUI();
             stats.style.display = 'none';
             downloadBtn.disabled = true;
+            updateUI();
         });
         
         // 清除所有点
         clearBtn.addEventListener('click', () => {
             points = [];
             drawImage();
-            updateUI();
             stats.style.display = 'none';
             downloadBtn.disabled = true;
+            updateUI();
         });
 
         // 文本输入变化时，更新按钮状态
@@ -857,7 +1243,7 @@
             // 标记中心
             ctx.fillStyle = 'blue';
             ctx.font = '14px Arial';
-            ctx.fillText(`中心(${centerMode === 'points' ? '点群' : '图片'})`, centerX + 10, centerY - 10);
+            // ctx.fillText(`中心(${centerMode === 'points' ? '点群' : '图片'})`, centerX + 10, centerY - 10);
             
             // 显示统计信息
             ctx.fillStyle = 'blue';
@@ -883,6 +1269,7 @@
             
             stats.style.display = 'block';
             downloadBtn.disabled = false;
+            updateUI();
         });
         // 旧 confirmCropBtn 逻辑已移除
 
@@ -974,10 +1361,280 @@
             return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
         }
 
-        downloadDataBtn.addEventListener('click', () => {
-            const data = gatherExportData();
-            downloadJSON(data, `ballistic_data_${timestampName()}.json`);
-        });
+        // 旧的数据按钮监听器已移除（该按钮目前在 HTML 中被注释）。
+
+        // ========= 下载图片（当前画布） =========
+        function downloadCanvasPNG(timestamp) {
+            if (!canvas) return;
+            const ts = timestamp || timestampName();
+            // 复制当前画布到离屏，再叠加二维码与水印
+            const comp = document.createElement('canvas');
+            comp.width = canvas.width;
+            comp.height = canvas.height;
+            const cctx = comp.getContext('2d');
+            cctx.drawImage(canvas, 0, 0);
+            return getQRCodeMatrix().then((matrix) => {
+                try { drawQrAndWatermark(cctx, matrix, 'https://rm.mcdz.cn'); } catch (_) {}
+            }).finally(() => {
+                comp.toBlob((blob) => {
+                    if (!blob) return;
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `ballistic_result_${ts}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 'image/png');
+            });
+        }
+
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', () => {
+                // 统一保存：PNG + JSON
+                const ts = timestampName();
+                // 保存图片
+                downloadCanvasPNG(ts);
+                // 保存数据
+                const data = gatherExportData();
+                downloadJSON(data, `ballistic_data_${ts}.json`);
+                // 显示 Star 引导
+                openStarModal();
+            });
+        }
+
+        // 若存在独立的数据保存按钮，保持兼容（可选）
+        if (downloadDataBtn) {
+            downloadDataBtn.addEventListener('click', () => {
+                const data = gatherExportData();
+                downloadJSON(data, `ballistic_data_${timestampName()}.json`);
+                openStarModal();
+            });
+        }
+
+        // ========= Star 弹窗控制 =========
+        function openStarModal() {
+            if (!starModal) return;
+            starModal.style.display = 'flex';
+            starModal.setAttribute('aria-hidden', 'false');
+        }
+        function closeStarModal() {
+            if (!starModal) return;
+            starModal.style.display = 'none';
+            starModal.setAttribute('aria-hidden', 'true');
+        }
+        if (starLaterBtn) {
+            starLaterBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                closeStarModal();
+            });
+        }
+        if (starGoBtn) {
+            starGoBtn.addEventListener('click', () => {
+                // 用户前往 GitHub，新标签已打开，同时关闭弹窗
+                // https://github.com/MicDZ/RM-Ballistic-Analysis
+                window.open("https://github.com/MicDZ/RM-Ballistic-Analysis", "_blank");
+                closeStarModal();
+            });
+        }
+
+        // ========= 裁剪弹窗与裁剪逻辑 =========
+        function openCropModal() {
+            if (!img || !img.width) return;
+            isCropModalOpen = true;
+            if (cropModal) {
+                cropModal.style.display = 'flex';
+                cropModal.setAttribute('aria-hidden', 'false');
+            }
+            // 初始化缩略比例与画布尺寸（限制宽度，等比缩放）
+            const maxThumbWidth = 860; // 约等于弹窗内容宽度
+            const targetWidth = Math.min(img.width, maxThumbWidth);
+            thumbScale = targetWidth / img.width;
+            cropCanvas.width = Math.max(1, Math.round(img.width * thumbScale));
+            cropCanvas.height = Math.max(1, Math.round(img.height * thumbScale));
+            thumbCropStart = null;
+            thumbCropRect = null;
+            // 默认禁用确认，待有选区后开启
+            if (cropConfirmBtn) cropConfirmBtn.disabled = true;
+            drawCropView();
+            updateUI();
+        }
+
+        function closeCropModal() {
+            isCropModalOpen = false;
+            if (cropModal) {
+                cropModal.style.display = 'none';
+                cropModal.setAttribute('aria-hidden', 'true');
+            }
+            updateUI();
+        }
+
+        function drawCropView() {
+            if (!cropCtx || !cropCanvas) return;
+            // 背景（白）
+            cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+            // 绘制缩略图
+            cropCtx.drawImage(
+                img,
+                0, 0, img.width, img.height,
+                0, 0, cropCanvas.width, cropCanvas.height
+            );
+            // 选区与遮罩
+            if (thumbCropRect && thumbCropRect.w > 0 && thumbCropRect.h > 0) {
+                // 使用奇偶填充规则，仅遮盖选区外部
+                cropCtx.save();
+                cropCtx.fillStyle = 'rgba(0,0,0,0.25)';
+                cropCtx.beginPath();
+                cropCtx.rect(0, 0, cropCanvas.width, cropCanvas.height);
+                cropCtx.rect(thumbCropRect.x, thumbCropRect.y, thumbCropRect.w, thumbCropRect.h);
+                cropCtx.fill('evenodd');
+                cropCtx.restore();
+
+                // 边框
+                cropCtx.save();
+                cropCtx.setLineDash([6, 4]);
+                cropCtx.lineWidth = 2;
+                cropCtx.strokeStyle = '#22c55e';
+                cropCtx.strokeRect(thumbCropRect.x, thumbCropRect.y, thumbCropRect.w, thumbCropRect.h);
+                cropCtx.restore();
+            }
+        }
+
+        function cropAspectRatio() {
+            // landscape: 宽 / 高
+            pageSizeMM = getPageSizeMM();
+            const w = Math.max(1, pageSizeMM[0]);
+            const h = Math.max(1, pageSizeMM[1]);
+            return w / h;
+        }
+
+        function attachCropMouseHandlers() {
+            if (!cropCanvas) return;
+            const onMouseDown = (e) => {
+                const rect = cropCanvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                thumbCropStart = { x, y };
+                thumbCropRect = { x, y, w: 0, h: 0 };
+                if (cropConfirmBtn) cropConfirmBtn.disabled = true;
+
+                const onMouseMove = (ev) => {
+                    const r = cropCanvas.getBoundingClientRect();
+                    const cx = ev.clientX - r.left;
+                    const cy = ev.clientY - r.top;
+                    const ratio = cropAspectRatio();
+                    // 以横向拖动为主，按比例约束高度
+                    const dx = cx - thumbCropStart.x;
+                    const dirX = dx >= 0 ? 1 : -1;
+                    const w = Math.abs(dx);
+                    const h = w / ratio;
+                    const dirY = (cy >= thumbCropStart.y) ? 1 : -1;
+                    const x0 = dirX === 1 ? thumbCropStart.x : thumbCropStart.x - w;
+                    const y0 = dirY === 1 ? thumbCropStart.y : thumbCropStart.y - h;
+                    thumbCropRect = { x: Math.max(0, x0), y: Math.max(0, y0), w: Math.max(1, Math.min(w, cropCanvas.width - x0)), h: Math.max(1, Math.min(h, cropCanvas.height - y0)) };
+                    drawCropView();
+                };
+
+                const onMouseUp = () => {
+                    window.removeEventListener('mousemove', onMouseMove);
+                    window.removeEventListener('mouseup', onMouseUp);
+                    if (thumbCropRect && thumbCropRect.w > 4 && thumbCropRect.h > 4) {
+                        if (cropConfirmBtn) cropConfirmBtn.disabled = false;
+                    }
+                };
+
+                window.addEventListener('mousemove', onMouseMove);
+                window.addEventListener('mouseup', onMouseUp);
+            };
+
+            cropCanvas.addEventListener('mousedown', onMouseDown);
+        }
+
+        // 绑定按钮事件
+        if (startCropBtn) {
+            startCropBtn.addEventListener('click', () => {
+                openCropModal();
+            });
+        }
+        if (cropCancelBtn) {
+            cropCancelBtn.addEventListener('click', () => {
+                closeCropModal();
+            });
+        }
+        if (cropConfirmBtn) {
+            cropConfirmBtn.addEventListener('click', () => {
+                if (!thumbCropRect || !img || !img.width) {
+                    closeCropModal();
+                    return;
+                }
+                // 将缩略选区映射到原图坐标
+                const sx = Math.round(thumbCropRect.x / thumbScale);
+                const sy = Math.round(thumbCropRect.y / thumbScale);
+                const sw = Math.round(thumbCropRect.w / thumbScale);
+                const sh = Math.round(thumbCropRect.h / thumbScale);
+                const clampedW = Math.max(1, Math.min(sw, img.width - sx));
+                const clampedH = Math.max(1, Math.min(sh, img.height - sy));
+
+                // 执行裁剪到新图片
+                const off = document.createElement('canvas');
+                off.width = clampedW;
+                off.height = clampedH;
+                const offCtx = off.getContext('2d');
+                offCtx.drawImage(img, sx, sy, clampedW, clampedH, 0, 0, clampedW, clampedH);
+                const dataURL = off.toDataURL('image/png');
+
+                const newImg = new Image();
+                newImg.onload = () => {
+                    // 裁剪完成后也统一缩放到宽度 1080
+                    resizeImageToWidth(newImg, 1080).then((resized) => {
+                        img = resized;
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        // 重新计算装甲板尺寸（基于缩放后尺寸）
+                        calculateArmorSizes(img.width, img.height);
+                        // 裁剪后清空点与标注
+                        points = [];
+                        labels = [];
+                        lastAnalysisCenter = null;
+                        hasCropped = true;
+                        stats.style.display = 'none';
+                        downloadBtn.disabled = true;
+                        drawImage();
+                        // 保持显示缩放为 1
+                        displayScale = 1;
+                        canvas.style.transformOrigin = 'top left';
+                        canvas.style.transform = `scale(${displayScale})`;
+                        closeCropModal();
+                        updateUI();
+                        drawMiniMap();
+                    });
+                };
+                newImg.src = dataURL;
+            });
+        }
+
+        if (modalPaperSizeSelect) {
+            modalPaperSizeSelect.addEventListener('change', (e) => {
+                selectedPaperKey = e.target.value || selectedPaperKey;
+                pageSizeMM = getPageSizeMM();
+                // 改变比例后，清空已有选区，等待重新拖拽
+                thumbCropRect = null;
+                if (cropConfirmBtn) cropConfirmBtn.disabled = true;
+                drawCropView();
+            });
+        }
+
+        // 初始化一次裁剪画布交互
+        attachCropMouseHandlers();
+        // 小地图交互、滚动与缩放事件
+        attachMiniMapInteractions();
+        if (canvasContainer) {
+            canvasContainer.addEventListener('scroll', drawMiniMap);
+        }
+        if (zoomInBtn) zoomInBtn.addEventListener('click', () => setDisplayScale(displayScale * 1.2));
+        if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => setDisplayScale(displayScale / 1.2));
+        window.addEventListener('resize', drawMiniMap);
     </script>
 </body>
 </html>
