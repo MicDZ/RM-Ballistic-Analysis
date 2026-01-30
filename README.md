@@ -1,19 +1,7 @@
-## 简介
-一个用于分析弹道的程序。
+## 弹道分析系统
+一个用于 RoboMaster 比赛的弹道分析工具。
 
-![效果图](20240424_9m_1.png)
+<img src="main.jpg" alt="效果图" width="600" style="display: block; margin: auto;"/>
 
-## 依赖
-```
-python
-numpy
-opencv
-tkinter
-PIL
-```
 
-## 使用
-```
-python ui.py
-```
-
+[![Star History Chart](https://api.star-history.com/svg?repos=MicDZ/RM-Ballistic-Analysis&type=date&legend=top-left)](https://www.star-history.com/#MicDZ/RM-Ballistic-Analysis&type=date&legend=top-left)
